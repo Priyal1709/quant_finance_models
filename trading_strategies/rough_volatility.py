@@ -1,26 +1,3 @@
-"""
-rough_vol_voo_strategy.py
-
-Rough volatility Monte Carlo for VOO using (lognormal) rough Bergomi.
-Includes a simple RVT (Rough-Vol Targeting) strategy based on MC tail risk.
-No internet is required; historical VOO data may be loaded from a CSV if provided.
-
-USAGE (CLI):
-    python rough_vol_voo_strategy.py --demo
-    python rough_vol_voo_strategy.py --csv path/to/voo.csv --price-col Close
-
-CSV FORMAT EXPECTED:
-    - A Date column parseable by pandas (name can be "Date" or "date").
-    - A price column (e.g., "Close" or "Adj Close") specified by --price-col.
-    - Any extra columns are ignored.
-
-OUTPUTS:
-    - PNG figures saved to the working directory.
-    - Printed summary of Monte Carlo results and strategy vs baseline.
-
-DEPENDENCIES:
-    numpy, pandas, matplotlib
-"""
 
 import argparse
 import numpy as np
@@ -42,7 +19,6 @@ def deannualize_mu_sigma(mu_ann: float, sigma_ann: float, periods_per_year: int 
     return mu_daily, sigma_daily
 
 def ewma_vol(returns: np.ndarray, lam: float = 0.94) -> np.ndarray:
-    """EWMA volatility estimate of daily returns (returns as decimal)."""
     var = 0.0
     out = np.zeros_like(returns)
     for i, r in enumerate(returns):
@@ -65,13 +41,6 @@ class RoughBergomiParams:
     periods_per_year: int = 252
 
 class RoughBergomiSimulator:
-    """
-    Lognormal rough Bergomi under the real measure:
-        dS_t = mu S_t dt + S_t sqrt(V_t) dW_t^S
-        log V_t = log xi0 + eta X_t - 0.5 * eta^2 Var(X_t)
-        X_t = ∫_0^t (t-s)^{H-1/2} dW_s^v
-    We simulate on a uniform grid using FFT-convolution to obtain X_t from standard normals.
-    """
     def __init__(self, params: RoughBergomiParams, S0: float = 100.0, seed: Optional[int] = 42):
         self.p = params
         self.S0 = S0
@@ -90,11 +59,6 @@ class RoughBergomiSimulator:
         return K, VarX
 
     def _fft_convolve_paths(self, Z: np.ndarray, K: np.ndarray) -> np.ndarray:
-        """
-        Convolve each path (row) of Z with kernel K using FFT (linear convolution).
-        Z shape: (n_paths, N), K shape: (N,)
-        Returns X with same shape.
-        """
         n_paths, N = Z.shape
         L = next_pow_two(N + N - 1)
         Kf = np.fft.rfft(K, n=L)
@@ -106,10 +70,6 @@ class RoughBergomiSimulator:
         return X
 
     def simulate(self, T_years: float = 2.0, N: Optional[int] = None, n_paths: int = 256) -> Dict[str, np.ndarray]:
-        """
-        Simulate S_t and V_t paths.
-        Returns a dict with 'S', 'V', 'X', 'times'.
-        """
         p = self.p
         if N is None:
             N = int(T_years * p.periods_per_year)
@@ -167,18 +127,10 @@ class RVTConfig:
     periods_per_year: int = 252
 
 class RVTMonteCarloStrategy:
-    """
-    Uses MC paths to compute short-horizon drawdown probabilities and sets
-    the weight w_t = min(1, target_vol / realized_vol) with a burst filter.
-    """
     def __init__(self, cfg: RVTConfig):
         self.c = cfg
 
     def _compute_mc_drawdown_prob(self, S_paths: np.ndarray, horizon: int, thresh: float) -> float:
-        """
-        Given current index 0 as "today", compute probability that
-        max drawdown over next `horizon` steps exceeds `thresh`.
-        """
         # Normalize by S0 for comparability.
         S0 = S_paths[:, 0:1]
         rel = S_paths[:, :horizon+1] / S0
@@ -189,10 +141,6 @@ class RVTMonteCarloStrategy:
 
     def backtest_on_single_path(self, S_path: np.ndarray, sim_engine: RoughBergomiSimulator,
                                 n_paths_mc: int = 256) -> Dict[str, np.ndarray]:
-        """
-        Backtest RVT along a *single* realized path by re-simulating short MC batches at each step.
-        For demo speed, we resample using the same parameters, conditioning only on last price (no filtering on V).
-        """
         c = self.c
         N = len(S_path) - 1
         dt_years = 1.0 / c.periods_per_year
@@ -264,7 +212,6 @@ def load_voo_csv(path: str, price_col: str = "Close") -> pd.DataFrame:
 # --------------- Parameter Heuristics ---------------
 
 def estimate_basic_params_from_prices(prices: np.ndarray, periods_per_year: int = 252) -> Tuple[float, float]:
-    """Return simple estimates (mu_ann, xi0_ann) from close prices."""
     logret = np.diff(np.log(prices))
     mu_daily = np.mean(logret)
     sig_daily = np.std(logret, ddof=1)
