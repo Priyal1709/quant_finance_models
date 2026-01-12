@@ -52,8 +52,7 @@ class RoughBergomiSimulator:
         u = np.arange(N) * dt
         K = np.zeros(N)
         K[1:] = np.power(u[1:], H - 0.5)
-        # Var(X_tk) ≈ ∫_0^{t_k} K^2(t_k - s) ds = ∫_0^{t_k} s^{2H - 1} ds = t_k^{2H} / (2H)
-        # Discrete approximation: cumulative sum of K^2 * dt (shifted appropriately).
+
         K2 = K * K
         VarX = np.cumsum(K2) * dt
         return K, VarX
@@ -76,9 +75,9 @@ class RoughBergomiSimulator:
         dt = T_years / N
 
         # Precompute kernel and variance correction
-        K, VarX = self._kernel_and_var(N + 1, dt)  # include t_0
-        K = K[:N]                                  # for ΔW indexing convenience
-        VarX = VarX[:N+1]                          # Var(X at grid), VarX[0]=0
+        K, VarX = self._kernel_and_var(N + 1, dt) 
+        K = K[:N]                                 
+        VarX = VarX[:N+1]                         
 
         # Brownian increments for spot and vol, correlated
         Zs = self.rng.standard_normal((n_paths, N))
